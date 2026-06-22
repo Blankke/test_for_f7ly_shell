@@ -179,8 +179,8 @@ int main(void) {
             break;
         }
 
-        // printf("\033[H");
-        // printf("\033[1;37m%-*.*s\033[0m\n", cols, cols, quit_prompt);
+        printf("\033[H");
+        printf("\033[1;37m%-*.*s\033[0m\n", cols, cols, quit_prompt);
 
         for (int y = 0; y < matrix_rows; ++y) {
             for (int x = 0; x < cols; ++x) {
