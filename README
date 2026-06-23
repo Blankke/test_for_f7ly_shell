@@ -1,1 +1,104 @@
-这是为了测试gcc和git功能的仓库
+# test_for_f7ly_shell
+
+这个仓库用于在 F7LY 交互式 shell 中做“看得见”的内核能力测试。程序都尽量保持单文件 C 实现，方便在 rootfs 里直接用 `cc` 编译，也方便把源码拷到其他环境做 A/B 对比。
+
+## 构建
+
+如果 rootfs 里有 `make`：
+
+```sh
+make
+```
+
+如果只有 `cc`，可以单独编译：
+
+```sh
+cc -O2 -Wall -Wextra -o cyber cyber.c
+cc -O2 -Wall -Wextra -o starfield starfield.c
+cc -O2 -Wall -Wextra -o tty_probe tty_probe.c
+cc -O2 -Wall -Wextra -o pipeflow pipeflow.c
+cc -O2 -Wall -Wextra -o signal_scope signal_scope.c
+```
+
+## 程序清单
+
+### cyber
+
+Matrix 风格字符雨。它会设置非规范输入、`VMIN=0`、`VTIME=0` 和 `O_NONBLOCK`，每帧轮询 `read()`，按 `q` 退出。
+
+主要覆盖：
+- ANSI 清屏、光标移动、颜色输出、`fflush`
+- `tcgetattr/tcsetattr`
+- `fcntl(F_GETFL/F_SETFL)` 与 `O_NONBLOCK`
+- 非阻塞 stdin 空读语义
+- `nanosleep`
+
+### starfield
+
+星空穿梭动画。和 `cyber` 一样依赖 raw keyboard 和非阻塞输入，但输出密度、窗口尺寸变化和动态内存压力更高。
+
+主要覆盖：
+- `ioctl(TIOCGWINSZ)`
+- `malloc/realloc/free` 路径
+- 高频 ANSI 刷新
+- raw stdin 下按 `q` 退出
+
+### tty_probe
+
+终端语义探针。它不会追求华丽画面，而是实时显示 `read()` 空读返回情况、按键码、窗口大小和轮询计数。修复 F7LY 非阻塞终端语义时，优先跑这个。
+
+正常现象：
+- 没有按键时，`EAGAIN` 计数持续增长
+- 按任意键，`bytes read` 和 `last key` 更新
+- 按 `q` 退出并恢复终端
+
+主要覆盖：
+- `ICANON/ECHO` 关闭
+- `VMIN=0`、`VTIME=0`
+- `O_NONBLOCK`
+- `read()` 返回 `EAGAIN`
+- `TIOCGWINSZ`
+
+### pipeflow
+
+多进程 pipe 流水线。父进程创建 pipe 并 fork 多个子进程，子进程不断写入事件，父进程用非阻塞 read 把事件渲染成多条终端流水线。
+
+主要覆盖：
+- `pipe`
+- `fork`
+- 多子进程调度
+- 父子进程 `read/write`
+- pipe 读端 `O_NONBLOCK`
+- `waitpid(..., WNOHANG)`
+- `kill(SIGTERM)` 清理子进程
+
+### signal_scope
+
+信号观察器。子进程交替向父进程发送 `SIGUSR1` 和 `SIGUSR2`，父进程在 signal handler 中计数并实时显示。
+
+主要覆盖：
+- `fork/getpid/getppid`
+- `kill`
+- `signal`
+- 用户态 signal handler 返回
+- `waitpid`
+- Ctrl-C/SIGINT 清理路径
+
+## 在 F7LY shell 中建议的运行顺序
+
+```sh
+cd /root/test_for_f7ly_shell
+cc -O2 -Wall -Wextra -o tty_probe tty_probe.c
+./tty_probe
+
+cc -O2 -Wall -Wextra -o cyber cyber.c
+./cyber
+
+cc -O2 -Wall -Wextra -o pipeflow pipeflow.c
+./pipeflow
+
+cc -O2 -Wall -Wextra -o signal_scope signal_scope.c
+./signal_scope
+```
+
+每个交互式程序都支持按 `q` 退出；如果终端异常，通常也可以用 Ctrl-C 触发清理。
