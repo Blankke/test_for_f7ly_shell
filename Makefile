@@ -9,7 +9,7 @@
 CC ?= cc
 CFLAGS ?= -O2 -Wall -Wextra
 
-PROGRAMS := cyber starfield tty_probe pipeflow signal_scope
+PROGRAMS := cyber starfield tty_probe pipeflow signal_scope hello_rust
 
 .PHONY: all clean
 
@@ -29,6 +29,9 @@ pipeflow: pipeflow.c
 
 signal_scope: signal_scope.c
 	$(CC) $(CFLAGS) -o $@ $<
+
+hello_rust: hello_rust.rs
+	rustc -o $@ $<
 
 clean:
 	rm -f $(PROGRAMS) a.out
