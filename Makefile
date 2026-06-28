@@ -35,3 +35,5 @@ hello_rust: hello_rust.rs
 
 clean:
 	rm -f $(PROGRAMS) a.out
+	rm -f *.swp
+	rm -f *.o
